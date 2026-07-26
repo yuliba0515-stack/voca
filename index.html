@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VocaBoost - 스마트 영단어 학습</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f4f6f9; --card-bg: #ffffff; --primary: #4f46e5; --primary-hover: #4338ca;
+            --accent: #10b981; --accent-hover: #059669; --warning: #f59e0b; --warning-hover: #d97706;
+            --text-main: #1f2937; --text-muted: #6b7280; --danger: #ef4444; --danger-hover: #dc2626;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            --shadow-lg: 0 20px 30px -10px rgba(79, 70, 229, 0.15);
+        }
+
+        * { box-sizing: border-box; font-family: 'Inter', 'Noto Sans KR', sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+
+        header { width: 100%; max-width: 440px; text-align: center; margin-bottom: 24px; padding-top: 10px; }
+        header h1 { font-size: 1.6rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; margin-bottom: 16px; }
+
+        nav { background: #ffffff; padding: 6px; border-radius: 16px; display: flex; box-shadow: var(--shadow); gap: 4px; }
+        nav button { flex: 1; padding: 10px 4px; border: none; background: transparent; color: var(--text-muted); font-size: 0.9rem; font-weight: 600; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; }
+        nav button.active { background-color: var(--primary); color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+
+        .container { width: 100%; max-width: 440px; }
+        .view { display: none; background: var(--card-bg); padding: 28px 24px; border-radius: 24px; box-shadow: var(--shadow); animation: fadeIn 0.3s ease; }
+        .active-view { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .view-title { font-size: 1.25rem; font-weight: 700; text-align: center; margin-bottom: 6px; color: var(--text-main); }
+        .status-text { text-align: center; font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px; font-weight: 500; }
+
+        .card-container { perspective: 1000px; height: 240px; margin-bottom: 24px; }
+        .card { width: 100%; height: 100%; position: relative; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; cursor: pointer; border-radius: 20px; }
+        .card.flipped { transform: rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 20px; padding: 20px; box-sizing: border-box; border: 2px solid #f0f2f5; background: #ffffff; box-shadow: var(--shadow-lg); }
+        .card-face .label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px; }
+        .card-front .word { font-size: 2.2rem; font-weight: 800; color: var(--text-main); }
+        .card-back { transform: rotateY(180deg); background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); border: none; }
+        .card-back .label { color: rgba(255, 255, 255, 0.7); }
+        .card-back .meaning { font-size: 1.6rem; font-weight: 700; color: #ffffff; }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 14px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-accent { background-color: var(--accent); color: white; }
+        .btn-accent:hover { background-color: var(--accent-hover); }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+        .btn-warning { background-color: var(--warning); color: white; }
+        .btn-warning:hover { background-color: var(--warning-hover); }
+        .btn-outline { background-color: transparent; border: 1.5px solid var(--danger); color: var(--danger); }
+        .btn-outline:hover { background-color: #fee2e2; }
+
+        input[type="text"], input[type="file"], select { width: 100%; padding: 12px 16px; margin-bottom: 12px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 0.95rem; outline: none; transition: border-color 0.2s; background-color: white; }
+        input[type="text"]:focus, select:focus { border-color: var(--primary); }
+        .section-divider { border: 0; height: 1px; background: #e5e7eb; margin: 24px 0; }
+
+        .quiz-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 20px; }
+        .quiz-word { font-size: 2rem; font-weight: 800; color: var(--primary); margin-top: 4px; }
+        .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+        .quiz-option { padding: 14px 16px; border: 1.5px solid #e5e7eb; background: white; color: var(--text-main); border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .quiz-option:hover { border-color: var(--primary); background-color: #eeeffe; color: var(--primary); }
+
+        #vocabularyListContainer { max-height: 350px; overflow-y: auto; border: 1.5px solid #e5e7eb; border-radius: 12px; }
+        .list-item { padding: 12px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; }
+        .list-item:last-child { border-bottom: none; }
+
+        .calendar-container { background: white; padding: 16px; border-radius: 16px; border: 1.5px solid #e5e7eb; margin-bottom: 24px; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: 700; font-size: 1.1rem; }
+        .calendar-header button { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); font-weight: 800; }
+        .calendar-header button:hover { color: var(--primary); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .calendar-day-header { text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+        .calendar-day { aspect-ratio: 1; display: flex; justify-content: center; align-items: center; font-size: 0.85rem; font-weight: 600; border-radius: 8px; background: #f4f6f9; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
+        .calendar-day:hover { transform: scale(1.05); border: 1px solid var(--primary); }
+        .calendar-day.level-1 { background: #d1fae5; color: #065f46; }
+        .calendar-day.level-2 { background: #34d399; color: white; }
+        .calendar-day.level-3 { background: #10b981; color: white; }
+        .calendar-day.level-4 { background: #059669; color: white; }
+        .calendar-day.today { border: 2px solid var(--primary); }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 90%; max-width: 400px; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-lg); }
+        .modal-header { font-size: 1.2rem; font-weight: 700; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: var(--text-main); }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+        .modal-stat { margin-bottom: 12px; font-size: 0.95rem; line-height: 1.6; }
+        .modal-word-list { max-height: 200px; overflow-y: auto; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+        
+        /* 툴팁 스타일 */
+        .word-tag { display: inline-block; position: relative; background: #e5e7eb; padding: 6px 10px; border-radius: 8px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 0.85rem; user-select: none; }
+        .word-tag:hover { background: #d1d5db; }
+        .word-tag .tooltip-box { visibility: hidden; width: max-content; min-width: 120px; max-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 8px; padding: 10px; position: absolute; z-index: 10; bottom: 130%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.2s; font-size: 0.8rem; font-weight: 500; line-height: 1.4; box-shadow: 0 4px 10px rgba(0,0,0,0.2); pointer-events: none; }
+        .word-tag .tooltip-box::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -6px; border-width: 6px; border-style: solid; border-color: #1f2937 transparent transparent transparent; }
+        .word-tag:hover .tooltip-box, .word-tag.active .tooltip-box { visibility: visible; opacity: 1; }
+        .wrong-badge { color: #fca5a5; font-size: 0.75rem; font-weight: 700; display: block; margin-top: 6px; border-top: 1px solid #374151; padding-top: 6px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>VocaBoost</h1>
+        <nav>
+            <button id="nav-list" class="active" onclick="switchView('list')">단어장</button>
+            <button id="nav-study" onclick="switchView('study')">학습</button>
+            <button id="nav-quiz" onclick="switchView('quiz')">퀴즈</button>
+            <button id="nav-manage" onclick="switchView('manage')">설정</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="listView" class="view active-view">
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <button onclick="changeMonth(-1)">&lt;</button>
+                    <span id="calendarMonthLabel">2026년 7월</span>
+                    <button onclick="changeMonth(1)">&gt;</button>
+                </div>
+                <div class="calendar-grid" id="calendarDaysHeader">
+                    <div class="calendar-day-header">일</div><div class="calendar-day-header">월</div>
+                    <div class="calendar-day-header">화</div><div class="calendar-day-header">수</div>
+                    <div class="calendar-day-header">목</div><div class="calendar-day-header">금</div>
+                    <div class="calendar-day-header">토</div>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+                <div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">* 날짜 클릭 시 단어 뜻(툴팁) 및 오답 여부 확인 가능</div>
+            </div>
+
+            <div class="view-title" style="margin-bottom: 16px;">단어장 및 관리</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <select id="listCategoryFilter" onchange="renderVocabularyList()" style="flex: 2; margin-bottom: 0;"></select>
+                <button class="btn btn-primary" style="flex: 1; padding: 12px;" onclick="createNewCategory()">새 단어장</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" id="newEn" placeholder="영어 단어" style="margin-bottom: 0; flex: 1;">
+                <input type="text" id="newKo" placeholder="한국어 뜻" style="margin-bottom: 0; flex: 1;">
+            </div>
+            <button class="btn btn-accent" onclick="addManualWord()" style="margin-bottom: 20px; font-size: 0.9rem; padding: 10px;">선택된 단어장에 추가</button>
+            <div class="section-divider" style="margin: 12px 0;"></div>
+            <div id="vocabularyListContainer"></div>
+        </div>
+
+        <div id="studyView" class="view">
+            <div class="view-title">학습 및 복습</div>
+            <div class="status-text" id="studyProgress">0 / 0</div>
+            <div class="card-container" onclick="flipCard()">
+                <div class="card" id="wordCard">
+                    <div class="card-face card-front"><span class="label">ENGLISH</span><span class="word" id="englishWord">단어 없음</span></div>
+                    <div class="card-face card-back"><span class="label">MEANING</span><span class="meaning" id="koreanMeaning">데이터를 추가해주세요</span></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-danger" onclick="markWord('not_memorized')">못 외움</button>
+                <button class="btn btn-warning" onclick="markWord('confusing')">헷갈림</button>
+                <button class="btn btn-accent" onclick="markWord('memorized')">다 외움</button>
+            </div>
+        </div>
+
+        <div id="quizView" class="view">
+            <div class="view-title">단어 퀴즈</div>
+            <div class="status-text" id="quizProgress">학습 성취도를 확인하세요</div>
+            
+            <div id="quizSelectionMenu" style="display: flex; flex-direction: column; gap: 12px; margin-top: 30px;">
+                <button class="btn btn-primary" onclick="startDailyQuiz()">일일 할당량 퀴즈 시작</button>
+                <button class="btn btn-warning" style="color:#fff;" onclick="startCumulativeQuiz()">누적 복습 테스트 (취약 단어 위주)</button>
+            </div>
+
+            <div id="quizPlayArea" style="display: none;">
+                <div class="quiz-card">
+                    <span style="font-size: 0.75rem; font-weight:700; color: var(--text-muted); text-transform: uppercase;">Question</span>
+                    <div class="quiz-word" id="quizWord">Word</div>
+                </div>
+                <div class="quiz-options" id="quizOptions"></div>
+                <button class="btn btn-outline" style="margin-top: 20px;" onclick="quitQuiz()">테스트 종료</button>
+            </div>
+        </div>
+
+        <div id="manageView" class="view">
+            <div class="view-title" style="text-align:left; margin-bottom: 6px;">파일 업로드</div>
+            <p style="font-size:0.82rem; color: var(--text-muted); margin-bottom: 12px;">어느 단어장에 저장할지 선택하세요.</p>
+            <select id="uploadCategorySelect" style="margin-bottom: 12px;"></select>
+            <input type="file" id="fileInput" accept=".csv, .xlsx, .xls">
+            <button class="btn btn-primary" onclick="handleFileUpload()">파일 가져오기</button>
+            <hr class="section-divider">
+            <div class="view-title" style="text-align:left; margin-bottom: 12px;">데이터 초기화</div>
+            <div class="status-text" id="totalCount" style="text-align:left; margin-bottom: 12px; font-weight: 700;">총 저장된 단어: 0개</div>
+            <button class="btn btn-outline" onclick="clearAllData()">전체 데이터 초기화</button>
+        </div>
+    </div>
+
+    <!-- 통계 팝업 모달 -->
+    <div class="modal-overlay" id="statModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modalTitle">상세 통계</span>
+                <button class="modal-close" onclick="closeStatModal()">&times;</button>
+            </div>
+            <div class="modal-stat" id="modalStats"></div>
+            <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">학습한 단어 목록 (터치하여 뜻 확인)</div>
+            <div class="modal-word-list" id="modalWordList"></div>
+        </div>
+    </div>
+
+    <script>
+        let allWords = []; let dailyWords = []; let categories = ['기본 단어장']; let currentStudyIndex = 0;
+        let quizPool = []; let nextRoundPool = []; let currentQuizIndex = 0; let currentQuizWord = null;
+        let activityLog = {}; let currentCalDate = new Date();
+        
+        // 퀴즈 종류 및 라운드 식별 변수 추가
+        let isCumulativeQuiz = false; 
+        let currentQuizRound = 1;
+
+        function init() {
+            const savedWords = localStorage.getItem('myVocabulary');
+            const savedCategories = localStorage.getItem('myCategories');
+            const savedLog = localStorage.getItem('myActivityLog');
+
+            if (savedCategories) categories = JSON.parse(savedCategories);
+            if (savedWords) {
+                allWords = JSON.parse(savedWords).map(w => ({
+                    en: w.en, ko: w.ko, category: w.category || '기본 단어장', status: w.status || 'not_memorized' 
+                }));
+            }
+            if (savedLog) activityLog = JSON.parse(savedLog);
+            
+            updateCategoryDropdowns(); prepareDailyWords(); renderCalendar(); renderVocabularyList();
+        }
+
+        function saveData() {
+            localStorage.setItem('myVocabulary', JSON.stringify(allWords));
+            localStorage.setItem('myCategories', JSON.stringify(categories));
+            document.getElementById('totalCount').innerText = `총 저장된 단어: ${allWords.length}개`;
+            updateCategoryDropdowns();
+        }
+
+        function recordActivity(wordEn) {
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            if (!activityLog[todayStr] || typeof activityLog[todayStr] === 'number') {
+                activityLog[todayStr] = { studyCount: 0, studiedWords: [], quizTotal: 0, quizCorrect: 0, wrongQuizWords: [] };
+            }
+            if(!activityLog[todayStr].wrongQuizWords) activityLog[todayStr].wrongQuizWords = [];
+            
+            activityLog[todayStr].studyCount++;
+            if (!activityLog[todayStr].studiedWords.includes(wordEn)) activityLog[todayStr].studiedWords.push(wordEn);
+            localStorage.setItem('myActivityLog', JSON.stringify(activityLog));
+        }
+
+        function recordQuizActivity(isCorrect, wordEn) {
+            const d = new Date();
+            const todayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            if (!activityLog[todayStr] || typeof activityLog[todayStr] === 'number') {
+                activityLog[todayStr] = { studyCount: 0, studiedWords: [], quizTotal: 0, quizCorrect: 0, wrongQuizWords: [] };
+            }
+            if(!activityLog[todayStr].wrongQuizWords) activityLog[todayStr].wrongQuizWords = [];
+            
+            activityLog[todayStr].quizTotal++;
+            if (isCorrect) {
+                activityLog[todayStr].quizCorrect++;
+            } else {
+                if (!activityLog[todayStr].wrongQuizWords.includes(wordEn)) activityLog[todayStr].wrongQuizWords.push(wordEn);
+            }
+            localStorage.setItem('myActivityLog', JSON.stringify(activityLog));
+        }
+
+        function switchView(viewName) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active-view'));
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+            document.getElementById(viewName + 'View').classList.add('active-view');
+            document.getElementById('nav-' + viewName).classList.add('active');
+            if (viewName === 'study') updateStudyCard();
+            if (viewName === 'list') { renderCalendar(); renderVocabularyList(); }
+            if (viewName === 'quiz') { quitQuiz(); }
+        }
+
+        function speakWord(word) {
+            if ('speechSynthesis' in window && word && word !== "단어 없음") {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'en-US'; window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function filterEnglish(text) { return text.replace(/[0-9]/g, '').replace(/[^a-zA-Z\s.,!?'"()\-;:_]/g, '').trim(); }
+        function filterKorean(text) { return text.replace(/[0-9]/g, '').replace(/[^가-힣ㄱ-ㅎㅏ-ㅣ\s.,!?'"()\-;:_~]/g, '').trim(); }
+
+        function updateCategoryDropdowns() {
+            const listFilter = document.getElementById('listCategoryFilter');
+            const uploadSelect = document.getElementById('uploadCategorySelect');
+            let listFilterVal = listFilter.value;
+            listFilter.innerHTML = '<option value="all">모든 단어장 보기</option>';
+            categories.forEach(cat => listFilter.innerHTML += `<option value="${cat}">${cat}</option>`);
+            if (listFilterVal && listFilterVal !== 'all' && categories.includes(listFilterVal)) listFilter.value = listFilterVal;
+            let uploadSelectVal = uploadSelect.value;
+            uploadSelect.innerHTML = '';
+            categories.forEach(cat => uploadSelect.innerHTML += `<option value="${cat}">${cat}</option>`);
+            if (categories.includes(uploadSelectVal)) uploadSelect.value = uploadSelectVal;
+        }
+
+        function createNewCategory() {
+            let newCat = prompt('새로 만들 단어장 이름을 입력하세요:');
+            if (newCat && newCat.trim() !== '' && !categories.includes(newCat.trim())) {
+                categories.push(newCat.trim()); saveData();
+                document.getElementById('listCategoryFilter').value = newCat.trim(); renderVocabularyList();
+            }
+        }
+
+        function addManualWord() {
+            let en = filterEnglish(document.getElementById('newEn').value);
+            let ko = filterKorean(document.getElementById('newKo').value);
+            let targetCategory = document.getElementById('listCategoryFilter').value;
+            if (targetCategory === 'all') targetCategory = '기본 단어장';
+            if (!en || !ko) return alert('유효한 정보를 입력하세요.');
+            allWords.push({ en: en, ko: ko, category: targetCategory, status: 'not_memorized' });
+            saveData(); document.getElementById('newEn').value = ''; document.getElementById('newKo').value = '';
+            renderVocabularyList(); prepareDailyWords();
+        }
+
+        function handleFileUpload() {
+            const fileInput = document.getElementById('fileInput'); const file = fileInput.files[0];
+            const targetCategory = document.getElementById('uploadCategorySelect').value || '기본 단어장';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+                json.forEach(row => {
+                    let rawEn = "", rawKo = "";
+                    row.forEach(cell => {
+                        if (!cell) return;
+                        if (/[가-힣]/.test(cell.toString())) rawKo = cell.toString();
+                        else if (/[a-zA-Z]/.test(cell.toString())) rawEn = cell.toString();
+                    });
+                    if (rawEn && rawKo) {
+                        let cleanEn = filterEnglish(rawEn), cleanKo = filterKorean(rawKo);
+                        if (cleanEn && cleanKo) allWords.push({ en: cleanEn, ko: cleanKo, category: targetCategory, status: 'not_memorized' });
+                    }
+                });
+                saveData(); fileInput.value = ''; prepareDailyWords();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function clearAllData() {
+            if (confirm('저장된 모든 단어와 데이터가 삭제됩니다. 계속하시겠습니까?')) {
+                allWords = []; categories = ['기본 단어장']; activityLog = {};
+                saveData(); localStorage.removeItem('myActivityLog');
+                updateStudyCard(); renderVocabularyList(); renderCalendar(); quitQuiz();
+            }
+        }
+
+        function prepareDailyWords() {
+            if (allWords.length === 0) { dailyWords = []; quizPool = []; return; }
+            let pool = allWords.filter(w => w.status !== 'memorized');
+            if (pool.length === 0) pool = allWords;
+            dailyWords = pool.sort(() => 0.5 - Math.random()).slice(0, 100);
+            currentStudyIndex = 0;
+            if (document.getElementById('studyView').classList.contains('active-view')) updateStudyCard();
+        }
+
+        function updateStudyCard() {
+            const card = document.getElementById('wordCard'), enEl = document.getElementById('englishWord'), koEl = document.getElementById('koreanMeaning'), progress = document.getElementById('studyProgress');
+            if (card.classList.contains('flipped')) {
+                card.style.transition = 'none'; card.classList.remove('flipped'); void card.offsetWidth; card.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+            } else card.classList.remove('flipped');
+            if (dailyWords.length === 0) { enEl.innerText = "단어 없음"; koEl.innerText = "데이터를 추가해주세요"; progress.innerText = "0 / 0"; return; }
+            enEl.innerText = dailyWords[currentStudyIndex].en; koEl.innerText = dailyWords[currentStudyIndex].ko;
+            progress.innerText = `${currentStudyIndex + 1} / ${dailyWords.length}`;
+            speakWord(dailyWords[currentStudyIndex].en);
+        }
+
+        function flipCard() {
+            if (dailyWords.length > 0) {
+                document.getElementById('wordCard').classList.toggle('flipped');
+                speakWord(dailyWords[currentStudyIndex].en);
+            }
+        }
+
+        function markWord(status) {
+            if (dailyWords.length === 0) return;
+            dailyWords[currentStudyIndex].status = status;
+            saveData(); 
+            recordActivity(dailyWords[currentStudyIndex].en); 
+            currentStudyIndex++;
+            if (currentStudyIndex >= dailyWords.length) {
+                let reviewList = dailyWords.filter(w => w.status !== 'memorized');
+                if (reviewList.length > 0) {
+                    alert(`학습 완료. 다 외우지 못한 ${reviewList.length}개의 단어를 다시 복습합니다.`);
+                    dailyWords = reviewList; currentStudyIndex = 0;
+                } else {
+                    alert('현재 할당된 단어를 모두 외웠습니다.');
+                    prepareDailyWords(); return;
+                }
+            }
+            updateStudyCard();
+        }
+
+        /* 퀴즈 로직 */
+        function quitQuiz() {
+            isCumulativeQuiz = false;
+            currentQuizRound = 1;
+            document.getElementById('quizSelectionMenu').style.display = 'flex';
+            document.getElementById('quizPlayArea').style.display = 'none';
+            document.getElementById('quizProgress').innerText = '학습 성취도를 확인하세요';
+        }
+
+        function startDailyQuiz() {
+            if (dailyWords.length === 0) return alert('학습할 단어가 없습니다.');
+            isCumulativeQuiz = false;
+            currentQuizRound = 1;
+            document.getElementById('quizSelectionMenu').style.display = 'none';
+            document.getElementById('quizPlayArea').style.display = 'block';
+            
+            quizPool = dailyWords.filter(w => w.status !== 'memorized');
+            if(quizPool.length === 0) quizPool = [...dailyWords];
+            quizPool.sort(() => Math.random() - 0.5);
+            nextRoundPool = []; currentQuizIndex = 0; generateQuiz();
+        }
+
+        function startCumulativeQuiz() {
+            if (allWords.length === 0) return alert('저장된 단어가 없습니다.');
+            isCumulativeQuiz = true;
+            currentQuizRound = 1;
+            document.getElementById('quizSelectionMenu').style.display = 'none';
+            document.getElementById('quizPlayArea').style.display = 'block';
+            
+            let weakWords = allWords.filter(w => w.status !== 'memorized');
+            let strongWords = allWords.filter(w => w.status === 'memorized');
+            
+            weakWords.sort(() => Math.random() - 0.5);
+            strongWords.sort(() => Math.random() - 0.5);
+            
+            let targetTotal = 30;
+            let weakCount = Math.floor(targetTotal * 0.8);
+            let strongCount = targetTotal - weakCount;
+            
+            if (weakWords.length < weakCount) { weakCount = weakWords.length; strongCount = targetTotal - weakCount; }
+            if (strongWords.length < strongCount) strongCount = strongWords.length;
+            
+            quizPool = [...weakWords.slice(0, weakCount), ...strongWords.slice(0, strongCount)];
+            quizPool.sort(() => Math.random() - 0.5);
+            nextRoundPool = []; currentQuizIndex = 0; generateQuiz();
+        }
+
+        function generateQuiz() {
+            if (quizPool.length === 0) {
+                document.getElementById('quizOptions').innerHTML = '<p style="text-align:center; color:var(--primary); font-weight:bold; margin-top:20px;">모든 단어를 맞췄습니다!</p>';
+                document.getElementById('quizWord').innerText = 'Clear!'; document.getElementById('quizProgress').innerText = '- / -'; return;
+            }
+            if (allWords.length < 4) { document.getElementById('quizOptions').innerHTML = '<p style="text-align:center; color:var(--danger); font-size:0.9rem;">최소 4개 이상의 단어가 등록되어야 합니다.</p>'; return; }
+            currentQuizWord = quizPool[currentQuizIndex];
+            document.getElementById('quizWord').innerText = currentQuizWord.en;
+            document.getElementById('quizProgress').innerText = `진도: ${currentQuizIndex + 1} / ${quizPool.length}`;
+            speakWord(currentQuizWord.en);
+            
+            let options = [currentQuizWord.ko];
+            while (options.length < 4) {
+                let randomWrong = allWords[Math.floor(Math.random() * allWords.length)].ko;
+                if (!options.includes(randomWrong)) options.push(randomWrong);
+            }
+            options.sort(() => Math.random() - 0.5);
+            
+            const optionsContainer = document.getElementById('quizOptions'); optionsContainer.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('button'); btn.className = 'quiz-option'; btn.innerText = opt;
+                btn.onclick = () => checkQuiz(opt); optionsContainer.appendChild(btn);
+            });
+        }
+
+        function checkQuiz(selectedOption) {
+            let isCorrect = (selectedOption === currentQuizWord.ko);
+            recordQuizActivity(isCorrect, currentQuizWord.en);
+            
+            if (isCorrect) {
+                // 누적 테스트 & 1라운드(한 번에 맞춤) & 단어 상태가 '다 외움'이 아닐 경우 자동 승급 로직
+                if (isCumulativeQuiz && currentQuizRound === 1 && currentQuizWord.status !== 'memorized') {
+                    currentQuizWord.status = 'memorized';
+                    saveData();
+                    alert(`정답입니다! 🎉\n[${currentQuizWord.en}] 단어를 완벽히 숙지하여 '다 외움' 등급으로 자동 승급되었습니다!`);
+                } else {
+                    alert('정답입니다! 👏');
+                }
+            } else {
+                alert(`오답입니다.\n정답: [${currentQuizWord.ko}]`);
+                nextRoundPool.push(currentQuizWord);
+            }
+            
+            currentQuizIndex++;
+            if (currentQuizIndex >= quizPool.length) {
+                if (nextRoundPool.length > 0) {
+                    currentQuizRound++;
+                    alert(`라운드 완료.\n틀린 ${nextRoundPool.length}개의 단어를 다시 퀴즈로 풉니다.`);
+                    quizPool = nextRoundPool; nextRoundPool = []; currentQuizIndex = 0;
+                } else {
+                    alert('오답 없이 배정된 모든 퀴즈를 통과했습니다.');
+                    quizPool = []; currentQuizIndex = 0; quitQuiz(); return;
+                }
+            }
+            generateQuiz();
+        }
+
+        /* 캘린더 및 모달 로직 */
+        function changeMonth(offset) { currentCalDate.setMonth(currentCalDate.getMonth() + offset); renderCalendar(); }
+
+        function renderCalendar() {
+            const container = document.getElementById('calendarGrid'), monthLabel = document.getElementById('calendarMonthLabel');
+            container.innerHTML = '';
+            const year = currentCalDate.getFullYear(), month = currentCalDate.getMonth();
+            monthLabel.innerText = `${year}년 ${month + 1}월`;
+            const firstDay = new Date(year, month, 1).getDay(), daysInMonth = new Date(year, month + 1, 0).getDate();
+            const dToday = new Date(), todayStr = `${dToday.getFullYear()}-${String(dToday.getMonth()+1).padStart(2,'0')}-${String(dToday.getDate()).padStart(2,'0')}`;
+            
+            for (let i = 0; i < firstDay; i++) container.appendChild(document.createElement('div'));
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dayDiv = document.createElement('div'); dayDiv.className = 'calendar-day';
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const logData = activityLog[dateStr];
+                
+                let activity = 0;
+                if (typeof logData === 'number') activity = logData;
+                else if (logData) activity = logData.studiedWords ? logData.studiedWords.length : 0;
+                
+                let progressClass = '';
+                if (activity >= 100) progressClass = 'level-4';
+                else if (activity >= 66) progressClass = 'level-3';
+                else if (activity >= 33) progressClass = 'level-2';
+                else if (activity > 0) progressClass = 'level-1';
+
+                if (progressClass) dayDiv.classList.add(progressClass);
+                if (dateStr === todayStr) dayDiv.classList.add('today');
+                dayDiv.innerText = i;
+                dayDiv.onclick = () => openStatModal(dateStr);
+                container.appendChild(dayDiv);
+            }
+        }
+
+        function openStatModal(dateStr) {
+            const log = activityLog[dateStr];
+            const overlay = document.getElementById('statModal');
+            document.getElementById('modalTitle').innerText = `${dateStr} 상세 통계`;
+            
+            if (!log) {
+                document.getElementById('modalStats').innerHTML = `학습 기록이 없습니다.`;
+                document.getElementById('modalWordList').innerHTML = '기록된 단어가 없습니다.';
+            } else if (typeof log === 'number') {
+                document.getElementById('modalStats').innerHTML = `<strong>학습 횟수:</strong> ${log}회<br>(구버전 데이터로 상세 내역 열람 불가)`;
+                document.getElementById('modalWordList').innerHTML = '기록된 단어가 없습니다.';
+            } else {
+                let acc = log.quizTotal > 0 ? Math.round((log.quizCorrect / log.quizTotal) * 100) : 0;
+                document.getElementById('modalStats').innerHTML = `<strong>학습 단어 수:</strong> ${log.studiedWords.length}개<br><strong>총 카드 넘김:</strong> ${log.studyCount}회<br><strong>퀴즈 정답률:</strong> ${acc}% (${log.quizCorrect} / ${log.quizTotal})`;
+                
+                let wordListHTML = '';
+                if (log.studiedWords && log.studiedWords.length > 0) {
+                    log.studiedWords.forEach(wEn => {
+                        let wordData = allWords.find(w => w.en === wEn) || { ko: '삭제된 단어' };
+                        let isWrong = log.wrongQuizWords && log.wrongQuizWords.includes(wEn);
+                        let wrongTag = isWrong ? `<span class="wrong-badge">🚨 퀴즈 오답 기록됨</span>` : '';
+                        
+                        wordListHTML += `
+                            <div class="word-tag" onclick="this.classList.toggle('active')">
+                                ${wEn}
+                                <div class="tooltip-box">
+                                    <strong>${wordData.ko}</strong>
+                                    ${wrongTag}
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    wordListHTML = '기록된 단어가 없습니다.';
+                }
+                document.getElementById('modalWordList').innerHTML = wordListHTML;
+            }
+            overlay.style.display = 'flex';
+        }
+
+        function closeStatModal() { document.getElementById('statModal').style.display = 'none'; }
+
+        function renderVocabularyList() {
+            const container = document.getElementById('vocabularyListContainer'), filter = document.getElementById('listCategoryFilter').value;
+            container.innerHTML = '';
+            let filteredWords = (filter && filter !== 'all') ? allWords.filter(w => w.category === filter) : allWords;
+            if (filteredWords.length === 0) { container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding: 20px;">단어가 없습니다.</div>'; return; }
+            filteredWords.forEach(w => {
+                const item = document.createElement('div'); item.className = 'list-item';
+                let statusColor = w.status === 'memorized' ? 'var(--accent)' : w.status === 'confusing' ? 'var(--warning)' : 'var(--danger)';
+                let statusText = w.status === 'memorized' ? '다 외움' : w.status === 'confusing' ? '헷갈림' : '못 외움';
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight: 700; color: var(--text-main); font-size: 1.1rem;">${w.en}</div>
+                        <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 4px;">${w.ko} <span style="font-size:0.7rem; background:#f0f2f5; padding:2px 6px; border-radius:4px; margin-left:6px;">${w.category}</span></div>
+                    </div>
+                    <div style="font-size: 0.8rem; font-weight: 600; color: ${statusColor}; align-self: center; white-space: nowrap;">${statusText}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
